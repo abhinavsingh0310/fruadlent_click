@@ -1,0 +1,59 @@
+import numpy as np
+import os
+import gc
+from sklearn.preprocessing import LabelEncoder
+import pandas as pd
+df=pd.read_csv(r"C:\train.csv",skiprows=range(1,1250),nrows=5000)
+dtypes ={ 'ip':'uint32','app':'uint16','device':'uint16','os':'uint16','channel':'uint16','is_attributed':'uint8','click_id':'uint32'}
+columns=['ip','app','device','os','channel','click_time','is_attributed']
+print(df)
+df.info()
+
+#to check actual download percantage using clicks.
+
+import seaborn as sns
+download_rate = df['is_attributed'].value_counts(normalize=True)*100
+ax = sns.barplot(['Click without download', 'Click with download'], download_rate)
+for p in ax.patches:
+    ax.annotate('{:.2f}%'.format(p.get_height()), (p.get_x()+p.get_width()/3, p.get_height()+0.1))
+    
+# to check 
+
+cols = ['ip', 'app', 'device', 'os', 'channel']
+uniques = [len(df[col].unique()) for col in cols]
+ax =sns.barplot(cols, uniques, log=True)
+for p in ax.patches:
+    ax.annotate(p.get_height(), (p.get_x()+p.get_width()/3, p.get_height()+0.1))
+    
+def displayCountAndPercentage(df, groupby, countby):
+    counts = df[[groupby]+[countby]].groupby(groupby, as_index=False).count().sort_values(countby, ascending=False)
+    percentage = df[groupby].value_counts(normalize=True)*100
+    ax = sns.barplot(x=groupby, y="is_attributed", data=counts[:10], order=counts[groupby][:10])
+    ax.set(ylabel='Number of click', title='Top 10 Click and Percentcage of Feature: [{}]'.format(groupby))
+    i = 0
+    for p in ax.patches:
+        ax.annotate('{:.1f}%'.format(percentage.iloc[i]), (p.get_x()+p.get_width()/3, p.get_height()+0.5))
+        i = i + 1
+    del counts, percentage
+    gc.collect()
+displayCountAndPercentage(df, 'channel', 'is_attributed')
+
+# download rate vs download count
+
+def displayCountAndDownloadRate(df, groupby, countby, top):
+    counts = df[[groupby]+[countby]].groupby(groupby, as_index=False).count().sort_values(countby, ascending=False)
+    download_rates = df[[groupby]+[countby]].groupby(groupby, as_index=False).mean().sort_values(countby, ascending=False)
+    df_merge = counts.merge(download_rates, on=groupby, how='left')
+    del counts,download_rates
+    gc.collect()
+    df_merge.columns = [groupby, 'click_count', 'download_rate']
+    df_merge[groupby] = df_merge[groupby].astype('category')
+    ax = df_merge[:top].plot(x=groupby, y="download_rate", legend=False, kind="bar", color="red", label="download rate (left)")
+    ax2 = ax.twinx()
+    df_merge[:top].plot(x=groupby, y="click_count", ax=ax2, legend=False, kind="line", color="green", label="click count (right)")
+    ax.set_xticklabels(df_merge[groupby])
+    ax.figure.legend(loc='upper left')
+    ax.set_title("Top {} Click Counts and Download Rates of [{}]".format(top, groupby))
+    del df_merge
+    gc.collect()
+displayCountAndDownloadRate(df, 'device', 'is_attributed',20)
